@@ -46,6 +46,7 @@ public class ItemServiceImpl implements ItemService {
         List<TbItem> list = tbItemMapper.selectByExample(example);
         PageInfo<TbItem> pageInfo = new PageInfo<TbItem>(list);
         PageResult result = new PageResult();
+
         result.setPageIndex(page);
         result.setTotalPage(pageInfo.getTotal());
         result.setResult(list);
