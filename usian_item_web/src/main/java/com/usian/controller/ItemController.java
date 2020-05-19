@@ -4,6 +4,7 @@ import com.usian.feign.ItemServiceFeignClient;
 import com.usian.pojo.TbItem;
 import com.usian.utils.PageResult;
 import com.usian.utils.Result;
+import org.aspectj.weaver.ast.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -46,4 +47,33 @@ public class ItemController {
         return Result.error("查无结果");
     }
 
+    /**
+     * 添加商品
+     * @param tbItem
+     * @param desc
+     * @param itemParams
+     * @return
+     */
+    @RequestMapping("/insertTbItem")
+    public Result insertTbItem(TbItem tbItem,String desc,String itemParams){
+        Integer insertItemNum = itemServiceFeignClient.insertTbItem(tbItem,desc,itemParams);
+        if (insertItemNum==3){
+            return Result.ok();
+        }
+        return Result.error("添加失败");
+    }
+
+    /**
+     * 根据id删除商品
+     * @param itemId
+     * @return
+     */
+    @RequestMapping("/deleteItemById")
+    public Result deleteItemById(Long itemId){
+       Integer tbitemId =  itemServiceFeignClient.deleteItemById(itemId);
+       if (tbitemId == 1){
+           return Result.ok();
+       }
+       return Result.error("删除失败");
+    }
 }

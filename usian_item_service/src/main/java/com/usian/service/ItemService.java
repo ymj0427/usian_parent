@@ -10,4 +10,10 @@ public interface ItemService {
 
     //查询所有商品，具有分页功能
     PageResult selectTbItemAllByPage(Integer page, Integer rows);
+
+    //添加商品
+    Integer insertTbItem(TbItem tbItem, String desc, String itemParams);
+
+    //删除商品
+    Integer deleteItemById(Long itemId);
 }
