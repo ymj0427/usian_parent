@@ -12,4 +12,25 @@ public interface ContentCategoryService {
      * @return
      */
     List<TbContentCategory> selectContentCategoryByParentId(Long id);
+
+    /**
+     * 添加内容分类
+     * @param tbContentCategory
+     * @return
+     */
+    Integer insertContentCategory(TbContentCategory tbContentCategory);
+
+    /**
+     * 根据categoryId删除内容分类
+     * @param categoryId
+     * @return
+     */
+    Integer deleteContentCategoryById(Long categoryId);
+
+    /**
+     * 根据id修改分类内容
+     * @param tbContentCategory
+     * @return
+     */
+    Integer updateContentCategory(TbContentCategory tbContentCategory);
 }
