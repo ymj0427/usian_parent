@@ -3,9 +3,11 @@ package com.usian.service;
 
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
+import com.netflix.discovery.converters.Auto;
 import com.usian.mapper.TbContentMapper;
 import com.usian.pojo.TbContent;
 import com.usian.pojo.TbContentExample;
+import com.usian.redis.RedisClient;
 import com.usian.utils.AdNode;
 import com.usian.utils.PageResult;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,6 +40,12 @@ public class ContentServiceImpl implements ContentService {
 
     @Value("${AD_WIDTHB}")
     private Integer AD_WIDTHB;
+
+    @Autowired
+    private RedisClient redisClient;
+
+    @Value("${portal_ad_redis_key}")
+    private String portal_ad_redis_key;
 
     /**
      * 根据内容类目id查询所有内容
@@ -75,6 +83,7 @@ public class ContentServiceImpl implements ContentService {
         Date date = new Date();
         tbContent.setUpdated(date);
         tbContent.setCreated(date);
+        redisClient.del(portal_ad_redis_key);
         return tbContentMapper.insertSelective(tbContent);
     }
 
@@ -85,7 +94,9 @@ public class ContentServiceImpl implements ContentService {
      */
     @Override
     public Integer deleteContentByIds(Long ids) {
-        return tbContentMapper.deleteByPrimaryKey(ids);
+        Integer i = tbContentMapper.deleteByPrimaryKey(ids);
+        redisClient.del(portal_ad_redis_key);
+        return i;
     }
 
     /**
@@ -94,6 +105,13 @@ public class ContentServiceImpl implements ContentService {
      */
     @Override
     public List<AdNode> selectFrontendContentByAD() {
+
+        List<AdNode> list = (List<AdNode>) redisClient.get(portal_ad_redis_key);
+        if (list != null && list.size()>0){
+            System.out.println("=====从Redis中获取大广告======");
+            return list;
+        }
+
         TbContentExample tbContentExample = new TbContentExample();
         TbContentExample.Criteria criteria = tbContentExample.createCriteria();
         criteria.andCategoryIdEqualTo(AD_CATEGORY_ID);
@@ -111,6 +129,8 @@ public class ContentServiceImpl implements ContentService {
             adNode.setWidthB(AD_WIDTHB);
             adNodeList.add(adNode);
         }
+        redisClient.set(portal_ad_redis_key,adNodeList);
+        System.out.println("=====从后台查询大广告======");
         return adNodeList;
     }
 }
