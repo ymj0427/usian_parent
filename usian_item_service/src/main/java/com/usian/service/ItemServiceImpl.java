@@ -8,8 +8,10 @@ import com.usian.mapper.TbItemDescMapper;
 import com.usian.mapper.TbItemMapper;
 import com.usian.mapper.TbItemParamItemMapper;
 import com.usian.pojo.*;
+import com.usian.redis.RedisClient;
 import com.usian.utils.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +32,12 @@ public class ItemServiceImpl implements ItemService {
 
     @Autowired
     private TbItemParamItemMapper tbItemParamItemMapper;
+
+    @Value("${portal_cateGory_redis_key}")
+    private String portal_cateGory_redis_key;
+
+    @Autowired
+    private RedisClient redisClient;
 
     /**
      * 商品查询
@@ -151,9 +159,20 @@ public class ItemServiceImpl implements ItemService {
      */
     @Override
     public CatResult selectItemCategoryAll() {
+        //查询缓存
+        CatResult catResultRedis = (CatResult) redisClient.get(portal_cateGory_redis_key);
+        if (catResultRedis != null){
+            System.out.println("======从Redis获取======");
+            return catResultRedis;
+        }
+
         CatResult catResult = new CatResult();
         //查询商品分类
         catResult.setData(getCatList(0L));
+
+        //添加到缓存
+        redisClient.set(portal_cateGory_redis_key,catResult);
+        System.out.println("======从后台查询=======");
         return catResult;
     }
 
