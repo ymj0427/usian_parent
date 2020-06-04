@@ -174,3 +174,7 @@
             searchSourceBuilder.query(boolQueryBuilder);
             searchRequest.source(searchSourceBuilder);
             searchResponse = restHighLevelClient.search(searchRequest,RequestOptions.DEFAULT);
+
+2020.6.4日报
+1、搭建ES集群
+2、搜索展示的商品信息，将信息存入ES中
