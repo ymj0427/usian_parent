@@ -3,6 +3,7 @@ package com.usian.service;
 
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
+import com.netflix.discovery.converters.Auto;
 import com.usian.mapper.TbItemCatMapper;
 import com.usian.mapper.TbItemDescMapper;
 import com.usian.mapper.TbItemMapper;
@@ -10,6 +11,7 @@ import com.usian.mapper.TbItemParamItemMapper;
 import com.usian.pojo.*;
 import com.usian.redis.RedisClient;
 import com.usian.utils.*;
+import org.springframework.amqp.core.AmqpTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -38,6 +40,9 @@ public class ItemServiceImpl implements ItemService {
 
     @Autowired
     private RedisClient redisClient;
+
+    @Autowired
+    private AmqpTemplate amqpTemplate;
 
     /**
      * 商品查询
@@ -105,6 +110,9 @@ public class ItemServiceImpl implements ItemService {
         tbItemParamItem.setCreated(date);
         tbItemParamItem.setUpdated(date);
         Integer tbitemParamNum = tbItemParamItemMapper.insertSelective(tbItemParamItem);
+
+        //添加商品发布消息到MQ
+        amqpTemplate.convertAndSend("item_exchage","item.add",itemId);
 
         System.out.println(tbItemNum + tbitemDescNum + tbitemParamNum+"============================");
         return tbItemNum + tbitemDescNum + tbitemParamNum;

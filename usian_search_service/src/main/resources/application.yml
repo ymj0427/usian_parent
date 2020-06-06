@@ -10,6 +10,14 @@ spring:
   data:
     elasticsearch:
       cluster-nodes: 192.168.2.132:9200,192.168.2.133:9200
+  rabbitmq:
+    host: 192.168.2.131
+    username: admin
+    password: 1111
+    virtual-host: /
+    listener:
+      direct:
+        acknowledge-mode: manual
 server:
   port: 8095
 eureka:
