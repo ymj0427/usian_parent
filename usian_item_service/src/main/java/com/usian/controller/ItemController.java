@@ -1,6 +1,7 @@
 package com.usian.controller;
 
 import com.usian.pojo.TbItem;
+import com.usian.pojo.TbItemDesc;
 import com.usian.service.ItemService;
 import com.usian.utils.CatResult;
 import com.usian.utils.PageResult;
@@ -92,5 +93,13 @@ public class ItemController {
     @RequestMapping("/updateTbItem")
     public Integer updateTbItem(@RequestBody TbItem tbItem, String desc, String itemParams){
         return itemService.updateTbItem(tbItem,desc,itemParams);
+    }
+
+    /**
+     * 根据商品 ID 查询商品描述
+     */
+    @RequestMapping("/selectItemDescByItemId")
+    public TbItemDesc selectItemDescByItemId(Long itemId){
+        return this.itemService.selectItemDescByItemId(itemId);
     }
 }

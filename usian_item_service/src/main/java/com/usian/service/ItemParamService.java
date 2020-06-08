@@ -1,6 +1,7 @@
 package com.usian.service;
 
 import com.usian.pojo.TbItemParam;
+import com.usian.pojo.TbItemParamItem;
 import com.usian.utils.PageResult;
 
 public interface ItemParamService {
@@ -34,4 +35,9 @@ public interface ItemParamService {
      * @return
      */
     Integer deleteItemParamById(Long id);
+
+    /**
+     * 根据商品 ID 查询商品规格
+     */
+    TbItemParamItem selectTbItemParamItemByItemId(Long itemId);
 }

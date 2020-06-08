@@ -15,6 +15,22 @@ public class RedisClient {
     private RedisTemplate<String,Object> redisTemplate;
 
     /**
+     * 分布式锁
+     * @param key
+     * @param count
+     * @param value
+     * @return
+     */
+    public Boolean setnx(String key, Object value, long count) {
+        try {
+            return redisTemplate.opsForValue().setIfAbsent(key, value, count, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    /**
      * 指定缓存的失效时间
      * @param key
      * @param time (时间/秒)

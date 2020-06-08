@@ -2,12 +2,17 @@ package com.usian.service;
 
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
+import com.usian.mapper.TbItemParamItemMapper;
 import com.usian.mapper.TbItemParamMapper;
 import com.usian.pojo.TbItemParam;
 import com.usian.pojo.TbItemParamExample;
+import com.usian.pojo.TbItemParamItem;
+import com.usian.pojo.TbItemParamItemExample;
+import com.usian.redis.RedisClient;
 import com.usian.utils.PageResult;
 import jdk.nashorn.internal.ir.ReturnNode;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +25,24 @@ public class ItemParamServiceImpl implements ItemParamService {
 
     @Autowired
     private TbItemParamMapper tbItemParamMapper;
+
+    @Autowired
+    private TbItemParamItemMapper tbItemParamItemMapper;
+
+    @Value("${ITEM_INFO}")
+    private String ITEM_INFO;
+
+    @Value("${PARAM}")
+    private String PARAM;
+
+    @Value("${ITEM_INFO_EXPIRE}")
+    private Integer ITEM_INFO_EXPIRE;
+
+    @Value("${SETNX_PARAM_LOCK_KEY}")
+    private String SETNX_PARAM_LOCK_KEY;
+
+    @Autowired
+    private RedisClient redisClient;
 
     /**
      * 根据id查询商品规格
@@ -101,5 +124,51 @@ public class ItemParamServiceImpl implements ItemParamService {
     @Override
     public Integer deleteItemParamById(Long id) {
         return tbItemParamMapper.deleteByPrimaryKey(id);
+    }
+
+    /**
+     * 根据商品id查询商品规格
+     * @param itemId
+     * @return
+     */
+    @Override
+    public TbItemParamItem selectTbItemParamItemByItemId(Long itemId) {
+        //查询缓存
+        TbItemParamItem tbItemParamItem = (TbItemParamItem) redisClient.get(
+                ITEM_INFO + ":" + itemId + ":"+ PARAM);
+        if(tbItemParamItem!=null){
+            return tbItemParamItem;
+        }
+        //***********解决缓存击穿**************
+        if (redisClient.setnx(SETNX_PARAM_LOCK_KEY+":"+itemId,itemId,30L)){
+            //查询MySql
+            TbItemParamItemExample example = new TbItemParamItemExample();
+            TbItemParamItemExample.Criteria criteria = example.createCriteria();
+            criteria.andItemIdEqualTo(itemId);
+            List<TbItemParamItem> tbItemParamItemList = tbItemParamItemMapper.selectByExampleWithBLOBs(example);
+            if(tbItemParamItemList!=null && tbItemParamItemList.size()>0){
+                //把数据保存到缓存
+                redisClient.set(ITEM_INFO + ":" + itemId + ":"+ PARAM,tbItemParamItemList.get(0));
+                //设置缓存的有效期
+                redisClient.expire(ITEM_INFO + ":" + itemId + ":"+ PARAM,ITEM_INFO_EXPIRE);
+                return tbItemParamItemList.get(0);
+            }else {
+                //****************解决缓存穿透***********************
+                //将空对象添加到redis中
+                redisClient.set(ITEM_INFO + ":" + itemId + ":"+ PARAM,null);
+                //设置缓存失效时间
+                redisClient.expire(ITEM_INFO + ":" + itemId + ":"+ PARAM,30);
+            }
+            //删除锁
+            redisClient.del(SETNX_PARAM_LOCK_KEY+":"+itemId);
+            return tbItemParamItem;
+        }else {
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+        return selectTbItemParamItemByItemId(itemId);
     }
 }

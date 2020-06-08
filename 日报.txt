@@ -178,3 +178,101 @@
 2020.6.4日报
 1、搭建ES集群
 2、搜索展示的商品信息，将信息存入ES中
+
+2020.6.5日报
+    商品搜索
+    usian_search_service
+         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+         HighlightBuilder highlightBuilder = new HighlightBuilder();
+                    highlightBuilder.preTags("<font color='red'>");
+                    highlightBuilder.postTags("</font>");
+                    highlightBuilder.field("item_title");
+                    searchSourceBuilder.highlighter(highlightBuilder);
+    新增商品同步索引库
+        common_mapper
+            SearchItemMapper：SearchItem getItemById(Long itemId);
+            SearchItemMapper.xml：
+                        a.id,
+                		a.title item_title,
+                		a.sell_point item_sell_point,
+                		a.price item_price,
+                		a.image item_image,
+                		b.name item_category_name,
+                		c.item_desc item_desc
+                	FROM
+                		tb_item a
+                	JOIN tb_item_cat b ON a.cid = b.id
+                	JOIN tb_item_desc c ON a.id = c.item_id
+                	WHERE a.status = 1
+                	  AND a.id=#{itemId}
+        usian_search_service
+            pom：spring-boot-starter-amqp
+            application.yml：
+                spring:
+                  rabbitmq:
+                    host: 192.168.29.134
+                    username: admin
+                    password: 1111
+                    virtual-host: /
+            service：
+                SearchItem searchItem = searchItemMapper.getItemById(Long.valueOf(itemId));
+                IndexResponse indexResponse = restHighLevelClient.index(indexRequest,RequestOptions.DEFAULT);
+            listerner：
+                value = @Queue(value="search_queue",durable = "true"),
+                exchange = @Exchange(value="item_exchage",type= ExchangeTypes.TOPIC),
+                key= {"item.*"}
+        usian_item_service
+            pom.xml：spring-boot-starter-amqp
+            application.yml：
+                spring:
+                  rabbitmq:
+                    host: 192.168.233.132
+                    username: admin
+                    password: 1111
+                    virtual-host: /
+
+2020.6.8日报
+    查询商品详情
+        创建usian_detail_web
+            pom：spring-cloud-starter-netflix-eureka-client
+            application.yml：
+                    spring:
+                      application:
+                        name: usian-detail-web
+                    server:
+                      port: 8097
+                    eureka:
+                      client:
+                        service-url:
+                             defaultZone: http://127.0.0.1:8761/eureka/
+        usian_item_service
+            application.yml：
+                    #商品详情
+                    ITEM_INFO: ITEM_INFO
+                    BASE: BASE
+                    DESC: DESC
+                    PARAM: PARAM
+                    ITEM_INFO_EXPIRE: 86400
+            ItemServiceImpl
+                    tbItem = tbItemMapper.selectByPrimaryKey(itemId);
+                	//把数据保存到缓存
+                	redisClient.set(ITEM_INFO + ":" + itemId + ":"+ BASE,tbItem);
+                	//设置缓存的有效期
+                	redisClient.expire(ITEM_INFO + ":" + itemId + ":"+ BASE,ITEM_INFO_EXPIRE);
+            ItemParamServiceImpl
+                    List<TbItemParamItem> tbItemParamItemList = tbItemParamItemMapper.selectByExampleWithBLOBs(example);
+                    redisClient.set(ITEM_INFO + ":" + itemId + ":"+ PARAM,tbItemParamItemList.get(0));
+                    //设置缓存的有效期
+                    redisClient.expire(ITEM_INFO + ":" + itemId + ":"+ PARAM,ITEM_INFO_EXPIRE);
+                    return tbItemParamItemList.get(0);
+    缓存穿透
+        概述：
+            当用户很发起很多请求的时候，缓存都没有命中，于是都去请求了持久层数据库，这会给持久层数据库造成很大的压力。
+        解决方案：
+            当存储层不命中后，即使返回的空对象也将其缓存起来，同时会设置一个过期时间（避免控制占用更多的存储空间），之后再访问这个数据将会从缓存中获取，保护了后端数据源
+    缓存击穿
+        概述：
+            缓存击穿，是指一个key非常热点，在不停的扛着大并发，大并发集中对这一个key不停进行访问，当这个key在失效的瞬间，持续的大并发就穿破缓存，直接请求数据库，就像在一个屏障上凿开了一个洞。
+        解决方案：
+            1、设置热点数据永远不过期
+            2、加分布式锁

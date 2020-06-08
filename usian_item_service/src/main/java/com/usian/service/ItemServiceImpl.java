@@ -44,6 +44,27 @@ public class ItemServiceImpl implements ItemService {
     @Autowired
     private AmqpTemplate amqpTemplate;
 
+    @Value("${ITEM_INFO}")
+    private String ITEM_INFO;
+
+    @Value("${BASE}")
+    private String BASE;
+
+    @Value("${DESC}")
+    private String DESC;
+
+    @Value("${PARAM}")
+    private String PARAM;
+
+    @Value("${ITEM_INFO_EXPIRE}")
+    private Integer ITEM_INFO_EXPIRE;
+
+    @Value("${SETNX_DESC_LOCK_KEY}")
+    private String SETNX_DESC_LOCK_KEY;
+
+    @Value("${SETNX_BASC_LOCK_KEY}")
+    private String SETNX_BASC_LOCK_KEY;
+
     /**
      * 商品查询
      * @param itemId
@@ -51,7 +72,38 @@ public class ItemServiceImpl implements ItemService {
      */
     @Override
     public TbItem selectItemInfo(Long itemId){
-        return tbItemMapper.selectByPrimaryKey(itemId);
+        TbItem tbItem = (TbItem)redisClient.get(ITEM_INFO + ":" + itemId + ":"+ BASE);
+        if (tbItem != null) {
+            return tbItem;
+        }
+
+        //*************解决缓存击穿*************
+        if (redisClient.setnx(SETNX_DESC_LOCK_KEY+":"+itemId,tbItem,30L)){
+            tbItem = tbItemMapper.selectByPrimaryKey(itemId);
+            if (tbItem != null){
+                //将数据存入reids缓存
+                redisClient.set(ITEM_INFO + ":" + itemId + ":"+ BASE,tbItem);
+                //设置redis缓存失效时间
+                redisClient.expire(ITEM_INFO + ":" + itemId + ":"+ BASE,ITEM_INFO_EXPIRE);
+                return tbItem;
+            }else {
+                //*********************解决缓存穿透*************************************
+                //将空数据缓存到redis中
+                redisClient.set(ITEM_INFO + ":" + itemId + ":"+ BASE,null);
+                //设置缓存失效时间
+                redisClient.expire(ITEM_INFO + ":" + itemId + ":"+ BASE,30);
+            }
+            //删除锁
+            redisClient.del(SETNX_BASC_LOCK_KEY+":"+itemId);
+            return tbItem;
+        }else {
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+        return selectItemInfo(itemId);
     }
 
     /**
@@ -126,6 +178,10 @@ public class ItemServiceImpl implements ItemService {
     @Override
     public Integer deleteItemById(Long itemId) {
         Integer i = tbItemMapper.deleteByPrimaryKey(itemId);
+        //删除redis缓存
+        redisClient.del(ITEM_INFO+":"+itemId+":"+BASE);
+        redisClient.del(ITEM_INFO+":"+itemId+":"+DESC);
+        redisClient.del(ITEM_INFO+":"+itemId+":"+PARAM);
         return i;
     }
 
@@ -250,7 +306,51 @@ public class ItemServiceImpl implements ItemService {
         tbItemParamItem.setUpdated(date);
         Integer tbitemParamNum = tbItemParamItemMapper.updateByPrimaryKeySelective(tbItemParamItem);
 
-        System.out.println(tbItemNum + tbitemDescNum + tbitemParamNum+"============================");
+        Long id = tbItem.getId();
+        //删除redis缓存
+        redisClient.del(ITEM_INFO+":"+id+":"+BASE);
+        redisClient.del(ITEM_INFO+":"+id+":"+DESC);
+        redisClient.del(ITEM_INFO+":"+id+":"+PARAM);
         return tbItemNum + tbitemDescNum + tbitemParamNum;
+    }
+
+    @Override
+    public TbItemDesc selectItemDescByItemId(Long itemId) {
+        //查询缓存
+        TbItemDesc tbItemDesc = (TbItemDesc) redisClient.get(
+                ITEM_INFO + ":" + itemId + ":"+ DESC);
+        if(tbItemDesc!=null){
+            return tbItemDesc;
+        }
+        //***********解决缓存击穿*******************
+        if (redisClient.setnx(SETNX_DESC_LOCK_KEY+":"+itemId,itemId,30)){
+            //MySql中查询
+            TbItemDescExample example = new TbItemDescExample();
+            TbItemDescExample.Criteria criteria = example.createCriteria();
+            criteria.andItemIdEqualTo(itemId);
+            List<TbItemDesc> itemDescList =
+                    this.tbItemDescMapper.selectByExampleWithBLOBs(example);
+            if(itemDescList!=null && itemDescList.size()>0){
+                //把数据保存到缓存
+                redisClient.set(ITEM_INFO + ":" + itemId + ":"+ DESC,itemDescList.get(0));
+                //设置缓存的有效期
+                redisClient.expire(ITEM_INFO + ":" + itemId + ":"+ DESC,ITEM_INFO_EXPIRE);
+                return itemDescList.get(0);
+            }else{
+                //***************解决缓存穿透*****************************8
+                redisClient.set(ITEM_INFO + ":" + itemId + ":" + DESC,null);
+                redisClient.expire(ITEM_INFO + ":" + itemId + ":" + DESC,30L);
+            }
+            //删除锁
+            redisClient.del(SETNX_DESC_LOCK_KEY+":"+itemId);
+            return tbItemDesc;
+        }else{
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+        return selectItemDescByItemId(itemId);
     }
 }
