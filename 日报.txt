@@ -232,39 +232,24 @@
                     virtual-host: /
 
 2020.6.8日报
-    查询商品详情
-        创建usian_detail_web
-            pom：spring-cloud-starter-netflix-eureka-client
-            application.yml：
-                    spring:
-                      application:
-                        name: usian-detail-web
-                    server:
-                      port: 8097
-                    eureka:
-                      client:
-                        service-url:
-                             defaultZone: http://127.0.0.1:8761/eureka/
-        usian_item_service
-            application.yml：
-                    #商品详情
-                    ITEM_INFO: ITEM_INFO
-                    BASE: BASE
-                    DESC: DESC
-                    PARAM: PARAM
-                    ITEM_INFO_EXPIRE: 86400
-            ItemServiceImpl
-                    tbItem = tbItemMapper.selectByPrimaryKey(itemId);
-                	//把数据保存到缓存
-                	redisClient.set(ITEM_INFO + ":" + itemId + ":"+ BASE,tbItem);
-                	//设置缓存的有效期
-                	redisClient.expire(ITEM_INFO + ":" + itemId + ":"+ BASE,ITEM_INFO_EXPIRE);
-            ItemParamServiceImpl
-                    List<TbItemParamItem> tbItemParamItemList = tbItemParamItemMapper.selectByExampleWithBLOBs(example);
-                    redisClient.set(ITEM_INFO + ":" + itemId + ":"+ PARAM,tbItemParamItemList.get(0));
-                    //设置缓存的有效期
-                    redisClient.expire(ITEM_INFO + ":" + itemId + ":"+ PARAM,ITEM_INFO_EXPIRE);
-                    return tbItemParamItemList.get(0);
+    商品搜索
+       方案一：thymeleaf页面静态化
+             a、创建商品详情的thymeleaf模板
+             b、创建RabbitMQ消费者，收到消息后生成静态页面（D:/detail/26774635180.html）
+             c、搭建nginx服务器，返回静态页面
+
+       方案二：redis
+             a、redis缓存商品详情
+                 1、先查询redis，如果有直接返回
+                 2、再查询mysql，并把查询结果装到redis中再返回
+
+             b、如何保证redis不满？redis中都是热点商品？
+                设置商品的实现时间：86400
+
+             c、怎么保存商品信息（数据类型）？
+                ITEM_INFO:123456:BASE
+                ITEM_INFO:123456:DESC
+                ITEM_INFO:123456:PARAM
     缓存穿透
         概述：
             当用户很发起很多请求的时候，缓存都没有命中，于是都去请求了持久层数据库，这会给持久层数据库造成很大的压力。
