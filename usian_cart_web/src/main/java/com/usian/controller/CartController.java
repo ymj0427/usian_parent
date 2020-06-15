@@ -50,7 +50,6 @@ public class CartController {
             addClientCookie(request,response,cart);
             return Result.ok();
         }else {
-            System.out.println("登陆拉拉拉拉阿拉啦啦");
             /***********在用户已登录的状态**********/
             // 1、从redis中查询商品列表。
             Map<String,TbItem> cart = getCartFromRedis(userId);
