@@ -35,7 +35,7 @@
             <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.usain</groupId>
+            <groupId>com.usian</groupId>
             <artifactId>common_redis</artifactId>
             <version>1.0-SNAPSHOT</version>
             <scope>compile</scope>

@@ -261,3 +261,125 @@
         解决方案：
             1、设置热点数据永远不过期
             2、加分布式锁
+
+2020.6.9日报
+    1、注册信息校验
+        /**
+         * 对用户的注册信息(用户名与电话号码)做数据校验
+         */
+        @Override
+        public boolean checkUserInfo(String checkValue, Integer checkFlag) {
+            TbUserExample example = new TbUserExample();
+            TbUserExample.Criteria criteria = example.createCriteria();
+            // 1、查询条件根据参数动态生成：1、2分别代表username、phone
+            if (checkFlag == 1) {
+                criteria.andUsernameEqualTo(checkValue);
+            } else if (checkFlag == 2) {
+                criteria.andPhoneEqualTo(checkValue);
+            }
+            // 2、从tb_user表中查询数据
+            List<TbUser> list = tbUserMapper.selectByExample(example);
+            // 3、判断查询结果，如果查询到数据返回false。
+            if (list == null || list.size() == 0) {
+                // 4、如果没有返回true。
+                return true;
+            }
+            // 5、如果有返回false。
+            return false;
+        }
+    }
+    2、用户注册
+         /**
+         * 用户注册
+         */
+        @Override
+        public Integer userRegister(TbUser user) {
+            //将密码做加密处理。
+            String pwd = MD5Utils.digest(user.getPassword());
+            user.setPassword(pwd);
+            //补齐数据
+            user.setCreated(new Date());
+            user.setUpdated(new Date());
+            return this.tbUserMapper.insert(user);
+        }
+    3、用户登录
+        @Override
+        public Map userLogin(String username, String password) {
+            // 1、判断用户名密码是否正确。
+            String pwd = MD5Utils.digest(password);
+            TbUserExample example = new TbUserExample();
+            TbUserExample.Criteria criteria = example.createCriteria();
+            criteria.andUsernameEqualTo(username);
+            criteria.andPasswordEqualTo(pwd);
+            List<TbUser> userList = this.tbUserMapper.selectByExample(example);
+            if(userList == null || userList.size() <= 0){
+                return null;
+            }
+            TbUser tbUser = userList.get(0);
+            // 2、登录成功后生成token。Token相当于原来的jsessionid，字符串，可以使用uuid。
+            String token = UUID.randomUUID().toString();
+            // 3、把用户信息保存到redis。Key就是token，value就是TbUser对象转换成json。
+            tbUser.setPassword(null);
+            redisClient.set(USER_INFO + ":" + token, tbUser);
+            // 5、设置key的过期时间。模拟Session的过期时间。
+            redisClient.expire(USER_INFO + ":" + token, SESSION_EXPIRE);
+
+            Map<String,String> map = new HashMap<String,String>();
+            map.put("token",token);
+            map.put("userid",tbUser.getId().toString());
+            map.put("username",tbUser.getUsername());
+            return map;
+        }
+    4、通过token查询用户信息
+        1、从url中取参数token
+        2、根据token查询redis
+        3、如果查询不到数据，前台删除cookie中的用户信息
+        4、如果查询到数据，说明用户已经登录需要重置key的过期时间
+
+         /**
+         * 查询用户登录是否过期
+         * @param token
+         * @return
+         */
+        @Override
+        public TbUser getUserByToken(String token) {
+            TbUser tbUser = (TbUser) redisClient.get(USER_INFO + ":" + token);
+            if(tbUser!=null){
+                //需要重置key的过期时间。
+                redisClient.expire(USER_INFO+":"+token,SESSION_EXPIRE);
+                return tbUser;
+            }
+            return null;
+        }
+
+    5、退出登录
+        /**
+         * 用户退出登录
+         * @param token
+         */
+        @Override
+        public Boolean logOut(String token) {
+           return redisClient.del(USER_INFO + ":" + token);
+        }
+
+2020.6.10日报
+    购物车
+        添加购物车商品
+        展示购物车列表页面
+        修改购物车商品数量
+        删除购物车商品
+    未登录状态下：
+        从cookie中查询商品列表Map<itemId,TbItem> 商品购买数量使用TbItem的num保存
+        ​	购物车已存在则直接返回
+        ​   购物车不存在则创建空的购物车并返回
+        添加商品到购物车：
+        ​	如果购物车存在该商品，商品数量相加。
+        ​	如果购物车不存在该商品，根据商品id查询商品信息并添加到购车列表
+        把购车商品列表写入cookie。
+        ​	读写cookie可以使用CookieUtils工具类实现
+
+    登录状态下：
+        使用redis存储商品列表，使用hash对购物车进行归类
+        从redis中查询商品列表
+        将商品添加大购物车中
+        将购物车缓存到redis中

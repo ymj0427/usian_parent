@@ -4,10 +4,17 @@ import com.usian.feign.ItemServiceFeignClient;
 import com.usian.pojo.TbItem;
 import com.usian.pojo.TbItemDesc;
 import com.usian.pojo.TbItemParamItem;
+import com.usian.utils.JsonUtils;
 import com.usian.utils.Result;
+import org.apache.commons.lang.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.util.ArrayList;
+import java.util.List;
 
 @RestController
 @RequestMapping("/frontend/detail")
@@ -52,5 +59,4 @@ public class DetailController {
         }
         return Result. error ("查无结果");
     }
-
 }

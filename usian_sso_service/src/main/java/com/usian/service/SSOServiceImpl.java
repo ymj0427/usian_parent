@@ -90,6 +90,8 @@ public class SSOServiceImpl implements SSOService {
         map.put("token",token);
         map.put("userid",tbUser.getId().toString());
         map.put("username",tbUser.getUsername());
+
+
         return map;
     }
 
