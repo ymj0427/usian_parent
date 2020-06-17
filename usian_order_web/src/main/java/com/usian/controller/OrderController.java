@@ -22,6 +22,8 @@ public class OrderController {
     @Autowired
     private CartServiceFeign cartServiceFeign;
 
+    @Autowired
+    private OrderServiceFeign orderServiceFeign;
 
     @RequestMapping("/goSettlement")
     public Result goSettlement(String[] ids, String userId) {
@@ -34,6 +36,25 @@ public class OrderController {
         }
         if(list.size()>0) {
             return Result.ok(list);
+        }
+        return Result.error("error");
+    }
+
+    /**
+     * 创建订单
+     */
+    @RequestMapping("/insertOrder")
+    public Result insertOrder(String orderItem, TbOrder tbOrder , TbOrderShipping
+            tbOrderShipping) {
+        OrderInfo orderInfo = new OrderInfo();
+        orderInfo.setTbOrder(tbOrder);
+        orderInfo.setTbOrderShipping(tbOrderShipping);
+        orderInfo.setOrderItem(orderItem);
+
+        Long orderId = orderServiceFeign.insertOrder(orderInfo);
+        if (orderId != null){
+            //删除购物车
+            return Result.ok(orderId);
         }
         return Result.error("error");
     }

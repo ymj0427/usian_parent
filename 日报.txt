@@ -476,3 +476,129 @@
                         return Result.error("error");
                     }
                 }
+
+2020.6.17日报
+    提交订单:
+        生成订单号：时间戳+用户id +店铺id
+        保存订单信息
+            a、在订单确认页面点击“提交订单”按钮生成订单。
+            b、请求的url：/frontend/order/insertOrder
+            c、参数：订单、订单商品、订单物流
+            d、返回值：{"status":200,"msg":"OK","data":"订单ID"}
+
+            @Override
+            public String insertOrder(OrderInfo orderInfo) {
+                //1、解析orderInfo
+                TbOrder tbOrder = orderInfo.getTbOrder();
+                TbOrderShipping tbOrderShipping = orderInfo.getTbOrderShipping();
+                List<TbOrderItem> tbOrderItemList =
+                    JsonUtils.jsonToList(orderInfo.getOrderItem(), TbOrderItem.class);
+
+                //2、保存订单信息
+                if(!redisClient.exists(ORDER_ID_KEY)){
+                    redisClient.set(ORDER_ID_KEY,ORDER_ID_BEGIN);
+                }
+                Long orderId = redisClient.incr(ORDER_ID_KEY, 1L);
+                tbOrder.setOrderId(orderId.toString());
+                Date date = new Date();
+                tbOrder.setCreateTime(date);
+                tbOrder.setUpdateTime(date);
+                //1、未付款，2、已付款，3、未发货，4、已发货，5、交易成功，6、交易关闭
+                tbOrder.setStatus(1);
+                tbOrderMapper.insertSelective(tbOrder);
+
+                //3、保存明细信息
+                if(!redisClient.exists(ORDER_ITEM_ID_KEY)){
+                    redisClient.set(ORDER_ITEM_ID_KEY,0);
+                }
+                for (int i = 0; i < tbOrderItemList.size(); i++) {
+                    Long oderItemId = redisClient.incr(ORDER_ITEM_ID_KEY, 1L);
+                    TbOrderItem tbOrderItem =  tbOrderItemList.get(i);
+                    tbOrderItem.setId(oderItemId.toString());
+                    tbOrderItem.setOrderId(orderId.toString());
+                    tbOrderItemMapper.insertSelective(tbOrderItem);
+                }
+
+                //4、保存物流信息
+                tbOrderShipping.setOrderId(orderId.toString());
+                tbOrderShipping.setCreated(date);
+                tbOrderShipping.setUpdated(date);
+                tbOrderShippingMapper.insertSelective(tbOrderShipping);
+
+                //5、返回订单id
+                return orderId.toString();
+            }
+        }
+
+    扣减库存：
+        将消息写入消息队列，业务逻辑以异步的方式运行，加快响应速度
+            usian_order_service
+                service
+                    @Service
+                    @Transactional
+                    public class OrderServiceImpl implements OrderService {
+                        ... ... ...
+                        @Autowired
+                        private AmqpTemplate amqpTemplate;
+
+                        @Override
+                        public Long insertOrder(OrderInfo orderInfo) {
+                            /************1、向订单表插入数据。********/
+                            ... ... ...
+                            /************2、向订单明细表插入数据********/
+                            ... ... ...
+                            /************3、向订单物流表插入数据。********/
+                            ... ... ...
+
+                            //发布消息到mq，完成扣减库存
+                            amqpTemplate.convertAndSend("order_exchage","order.add", orderId);
+
+                            /************4、返回订单id********/
+                            ... ... ...
+                        }
+                    }
+            usian_item_service
+                service
+                    /**
+                    	 * 修改商品库存数量
+                    	 * @param orderId
+                    	 * @return
+                    	 */
+                        @Override
+                        public Integer updateTbItemByOrderId(String orderId) {
+                            TbOrderItemExample tbOrderItemExample = new TbOrderItemExample();
+                            TbOrderItemExample.Criteria criteria = tbOrderItemExample.createCriteria();
+                            criteria.andOrderIdEqualTo(orderId);
+                            List<TbOrderItem> tbOrderItemList =
+                                	tbOrderItemMapper.selectByExample(tbOrderItemExample);
+                            int result = 0;
+                            for (int i = 0; i < tbOrderItemList.size(); i++) {
+                                TbOrderItem tbOrderItem =  tbOrderItemList.get(i);
+                                TbItem tbItem =
+                                    tbItemMapper.selectByPrimaryKey(Long.valueOf(tbOrderItem.getItemId()));
+                                tbItem.setNum(tbItem.getNum()-tbOrderItem.getNum());
+                                result += tbItemMapper.updateByPrimaryKeySelective(tbItem);
+                            }
+                            return result;
+                        }
+                listener
+                    /**
+                         * 监听者接收消息三要素：
+                         *  1、queue
+                         *  2、exchange
+                         *  3、routing key
+                         */
+                        @RabbitListener(bindings = @QueueBinding(
+                            value = @Queue(value="item_queue",durable = "true"),
+                            exchange = @Exchange(value="order_exchage",type= ExchangeTypes.TOPIC),
+                            key= {"*.*"}
+                        ))
+                        public void listen(String orderId) throws Exception {
+                            System.out.println("接收到消息：" + orderId);
+                            Integer result = itemService.updateTbItemByOrderId(orderId);
+                            if(!(result>0)){
+                                throw new RuntimeException("扣减失败");
+                            }
+                        }
+                    }
+

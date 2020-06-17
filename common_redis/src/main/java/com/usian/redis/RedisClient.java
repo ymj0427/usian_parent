@@ -284,4 +284,7 @@ public class RedisClient {
         }
     }
 
+    public boolean exists(String key) {
+        return redisTemplate.hasKey(key);
+    }
 }

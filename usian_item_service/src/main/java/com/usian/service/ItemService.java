@@ -32,4 +32,6 @@ public interface ItemService {
 
     TbItemDesc selectItemDescByItemId(Long itemId);
 
+    Integer updateTbItemByOrderId(String orderId);
+
 }
