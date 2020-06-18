@@ -602,3 +602,135 @@
                         }
                     }
 
+2020.6.18日报
+    关闭超时的订单：
+       <!-- quartz启动器 -->
+       <dependency>
+           <groupId>org.springframework.boot</groupId>
+           <artifactId>spring-boot-starter-quartz</artifactId>
+       </dependency>
+
+        QuartzConfig
+           /**
+             * 1.创建Job对象
+             */
+            @Bean
+            public JobDetailFactoryBean jobDetailFactoryBean(){
+                JobDetailFactoryBean factory = new JobDetailFactoryBean();
+                //关联我们自己的Job类
+                factory.setJobClass(OrderQuartz.class);
+                return factory;
+            }
+
+            /**
+             * Cron Trigger
+             */
+              @Bean
+            public CronTriggerFactoryBean cronTriggerFactoryBean(JobDetailFactoryBean
+                                                                    jobDetailFactoryBean){
+                CronTriggerFactoryBean factory = new CronTriggerFactoryBean();
+                factory.setJobDetail(jobDetailFactoryBean.getObject());
+                //设置触发时间
+                //factory.setCronExpression("0/2 * * * * ?");
+                factory.setCronExpression("0 */1 * * * ?");
+                return factory;
+            }
+
+            /**
+             * 3.创建Scheduler对象
+             */
+            @Bean
+            public SchedulerFactoryBean schedulerFactoryBean(CronTriggerFactoryBean
+                            cronTriggerFactoryBean, MyAdaptableJobFactory myAdaptableJobFactory){
+                SchedulerFactoryBean factory = new SchedulerFactoryBean();
+                //关联trigger
+                factory.setTriggers(cronTriggerFactoryBean.getObject());
+                factory.setJobFactory(myAdaptableJobFactory);
+                return factory;
+            }
+
+        MyAdaptableJobFactory
+            //AutowireCapableBeanFactory 可以将一个对象添加到SpringIOC容器中，并且完成该对象注入
+            	@Autowired
+            	private AutowireCapableBeanFactory autowireCapableBeanFactory;
+
+            	/**
+            	 * 解决任务类中注入service报错问题：
+            	 * 	该方法将需要实例化的任务对象手动的添加到springIOC容器中并且完成对象的注入
+            	 */
+            	@Override
+            	protected Object createJobInstance(TriggerFiredBundle bundle) throws Exception {
+            		Object obj = super.createJobInstance(bundle);
+            		//将obj对象添加Spring IOC容器中，并完成注入
+            		this.autowireCapableBeanFactory.autowireBean(obj);
+            		return obj;
+            	}
+        OrderQuartz
+            @Autowired
+            	private OrderService orderService;
+
+            	/**
+            	 * 关闭超时订单
+            	 */
+            	@Override
+                public void execute(JobExecutionContext context) throws JobExecutionException {
+                    //1、查询超时订单
+                     List<TbOrder> tbOrderList = orderService.selectOverTimeTbOrder();
+
+                    //2、关闭超时订单
+                    for (int i = 0; i < tbOrderList.size(); i++) {
+                        TbOrder tbOrder =  tbOrderList.get(i);
+                        orderService.updateOverTimeTbOrder(tbOrder);
+
+                        //3、把超时订单中的商品库存数量加回去
+                        orderService.updateTbItemByOrderId(tbOrder.getOrderId());
+                    }
+                }
+        service
+            /**
+                 * 查询超时订单
+                 * @return
+                 */
+                @Override
+                public List<TbOrder> selectOvertimeOrder() {
+                    return orderMapper.selectOvertimeOrder();
+                }
+
+                /**
+                 * 关闭超时订单
+                 * @param tbOrder
+                 */
+                @Override
+                public void updateOverTimeTbOrder(TbOrder tbOrder) {
+                    tbOrder.setStatus(6);
+                    Date date = new Date();
+                    tbOrder.setCloseTime(date);
+                    tbOrder.setEndTime(date);
+                    tbOrder.setUpdateTime(date);
+                    tbOrderMapper.updateByPrimaryKeySelective(tbOrder);
+                }
+
+                /**
+                 * 把订单中商品的库存数量加回去
+                 * @param itemId
+                 * @param num
+                 */
+                @Override
+                   @Override
+                public void updateTbItemByOrderId(String orderId) {
+                    //1、通过orderId查询LisT<TbOrderItem>
+                    TbOrderItemExample tbOrderItemExample = new TbOrderItemExample();
+                    TbOrderItemExample.Criteria criteria = tbOrderItemExample.createCriteria();
+                    criteria.andOrderIdEqualTo(orderId);
+                    List<TbOrderItem> tbOrderItemList =
+                        tbOrderItemMapper.selectByExample(tbOrderItemExample);
+                    for (int i = 0; i < tbOrderItemList.size(); i++) {
+                        TbOrderItem tbOrderItem =  tbOrderItemList.get(i);
+                        //2、修改商品库存
+                        TbItem tbItem =
+                            tbItemMapper.selectByPrimaryKey(Long.valueOf(tbOrderItem.getItemId()));
+                        tbItem.setNum(tbItem.getNum()+tbOrderItem.getNum());
+                        tbItem.setUpdated(new Date());
+                        tbItemMapper.updateByPrimaryKey(tbItem);
+                    }
+                }
