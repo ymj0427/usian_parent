@@ -1,9 +1,7 @@
 package com.usian.service;
 
-import com.usian.mapper.TbItemMapper;
-import com.usian.mapper.TbOrderItemMapper;
-import com.usian.mapper.TbOrderMapper;
-import com.usian.mapper.TbOrderShippingMapper;
+import com.usian.mapper.*;
+import com.usian.mq.MQSender;
 import com.usian.pojo.*;
 import com.usian.redis.RedisClient;
 import com.usian.utils.JsonUtils;
@@ -15,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @Transactional
@@ -22,14 +21,24 @@ public class OrderServiceImpl implements OrderService {
 
     @Autowired
     private TbOrderMapper tbOrderMapper;
+
     @Autowired
     private TbOrderItemMapper tbOrderItemMapper;
+
     @Autowired
     private TbOrderShippingMapper tbOrderShippingMapper;
+
     @Autowired
     private TbItemMapper tbItemMapper;
+
+    @Autowired
+    private LocalMessageMapper localMessageMapper;
+
     @Autowired
     private RedisClient redisClient;
+
+    @Autowired
+    private MQSender mqSender;
 
     @Autowired
     private AmqpTemplate amqpTemplate;
@@ -82,7 +91,17 @@ public class OrderServiceImpl implements OrderService {
         tbOrderShippingMapper.insertSelective(tbOrderShipping);
 
         //发布消息到mq，完成扣减库存
-        amqpTemplate.convertAndSend("order_exchage","order.add", orderId);
+        //amqpTemplate.convertAndSend("order_exchage","order.add", orderId);
+
+        //保存本地消息记录
+        LocalMessage localMessage = new LocalMessage();
+        localMessage.setTxNo(UUID.randomUUID().toString());
+        localMessage.setOrderNo(orderId.toString());
+        localMessage.setState(0);
+        localMessageMapper.insertSelective(localMessage);
+
+        //发布消息到mq，完成扣减库存
+        mqSender.sendMsg(localMessage);
 
         //5、返回订单id
         return orderId;
