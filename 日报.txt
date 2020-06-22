@@ -826,3 +826,42 @@
             任务失败：当任务处理失败后，则返回给消息中间件失败，消息会重复发送
         问题三：对消息做幂等：
             任务B处理消息前，先查询该消息是否被消费，如果没消费，处理任务B成功，记录消息。如果消息已经被消费，直接返回应答成功
+
+2020.6.22日报
+    ItemMQListener
+         public void listener(String msg, Channel channel, Message message)
+                														throws IOException {
+                LocalMessage localMessage = JsonUtils.jsonToPojo(msg, LocalMessage.class);
+
+                //进行幂等判断，防止ack应为网络问题没有送达，导致扣减库存业务重复执行
+                DeDuplication deDuplication =
+                    deDuplicationService.selectDeDuplicationByTxNo(localMessage.getTxNo());
+                if(deDuplication==null){
+                    //扣减库存
+                    Integer result =
+                        itemService.updateTbItemByOrderId(localMessage.getOrderNo());
+                    if(!(result>0)){
+                        throw new RuntimeException("扣减库存失败");
+                    }
+                    //记录成功执行过的事务
+                    deDuplicationService.insertDeDuplication(localMessage.getTxNo());
+                }else{
+                    System.out.println("=======幂等生效：事务"+deDuplication.getTxNo()
+                            +" 已成功执行===========");
+                }
+                channel.basicAck(message.getMessageProperties().getDeliveryTag(),false);
+            }
+    分布式日志:
+        ELK介绍:
+               ELK是Elasticsearch、Logstash、Kibana的简称（也称为 ELK Stack），是elastic公司提供的一套完整的日志收集以及展示的解决方案，
+            能够安全可靠地获取任何来源、任何格式的数据，然后实时地对数据进行搜索、分析和可视化。
+
+            - Elasticsearch：是开源的分布式全文检索服务器。
+            - Logstash：是一个具有实时传输能力的数据收集引擎，用来进行数据收集（如：读取文本文件）、解析，并将数据发送给ES。
+            - Kibana：数据分析与可视化平台，对Elasticsearch存储的数据进行可视化分析，通过表格的形式展现出来。
+
+        为什么要用 ELK？
+            一般大型系统都采用分布式架构，不同的模块部署在不同的服务器上，大规模分布式项目的日志面临的问题如下：
+            1. 文本搜索太慢怎么办？
+            2. 分布式环境下的日志如何查询？
+            3. 如何多维度查询？
