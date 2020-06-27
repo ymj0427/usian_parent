@@ -39,7 +39,7 @@ public class ItemController {
      */
     @RequestMapping("/selectTbItemAllByPage")
     public Result selectTbItemAllByPage(@RequestParam(defaultValue = "1") Integer page,
-                                        @RequestParam(defaultValue = "3") Integer rows){
+                                        @RequestParam(defaultValue = "2") Integer rows){
         PageResult pageResult = itemServiceFeignClient.selectTbItemAllByPage(page, rows);
         if (pageResult != null && pageResult.getResult() != null
                                && pageResult.getResult().size()>0){

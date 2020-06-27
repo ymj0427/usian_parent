@@ -1,5 +1,6 @@
 package com.usian.feign;
 
+import com.usian.fallback.ItemServiceFallback;
 import com.usian.pojo.TbItem;
 import com.usian.pojo.TbItemCat;
 import com.usian.pojo.TbItemParam;
@@ -12,7 +13,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
-@FeignClient(value = "usian-item-service")
+@FeignClient(value = "usian-item-service",fallbackFactory = ItemServiceFallback.class)
 public interface ItemServiceFeignClient {
 
     /**
