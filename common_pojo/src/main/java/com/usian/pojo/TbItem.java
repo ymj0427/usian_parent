@@ -1,16 +1,24 @@
 package com.usian.pojo;
 
+import io.swagger.annotations.ApiModel;
+import io.swagger.annotations.ApiModelProperty;
+
 import java.util.Date;
 
 public class TbItem {
+    @ApiModelProperty(hidden = true)
     private Long id;
 
+    @ApiModelProperty(value="商品名称",required = true)
     private String title;
 
+    @ApiModelProperty(value="卖点",required = true)
     private String sellPoint;
 
+    @ApiModelProperty(value="价格",required = true)
     private Long price;
 
+    @ApiModelProperty(value="库存",required = true)
     private Integer num;
 
     private String barcode;

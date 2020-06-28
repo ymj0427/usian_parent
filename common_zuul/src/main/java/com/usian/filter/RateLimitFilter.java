@@ -46,8 +46,7 @@ public class RateLimitFilter extends ZuulFilter {
             RequestContext requestContext =
                     RequestContext.getCurrentContext();
             requestContext.setSendZuulResponse(false);
-            requestContext.setResponseBody(JsonUtils.objectToJson(
-                		Result.error("访问太多频繁，请稍后再访问！！！")));
+            requestContext.setResponseBody(JsonUtils.objectToJson(Result.error("访问太多频繁，请稍后再访问！！！")));
             requestContext.getResponse().setContentType("application/json; charset=utf-8");
         }
         return null;
