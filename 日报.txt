@@ -1274,3 +1274,67 @@
                     return null;
                 }
             }
+
+2020.6.29日报
+       一、分布式配置中心config
+        集中管理配置文件
+            common_config:
+                pom.xml:
+                    spring-cloud-config-server
+                application.yml：
+                    server:
+                      port: 3344
+
+                    spring:
+                      cloud:
+                        config:
+                          server:
+                            git:
+                              uri: https://github.com/guangweima/usian-config.git #GitHub上面的git仓库名字
+            usian_item_service：
+                pom.xml：
+                    spring-cloud-starter-config
+                bootstrap.yml：
+                    spring:
+                      cloud:
+                        config:
+                          name: usian-item-service #需要从github上读取的资源名称，注意没有yml后缀名
+                          profile: dev   #本次访问的配置项
+                          label: master
+                          uri: http://127.0.0.1:3344  #配置中心的地址
+            usian_item_web：
+                pom.xml：
+                    spring-cloud-starter-config
+                bootstrap.yml：
+                    spring:
+                      cloud:
+                        config:
+                          name: usian-item-web #需要从github上读取的资源名称，注意没有yml后缀名
+                          profile: dev   #本次访问的配置项
+                          label: master
+                          uri: http://127.0.0.1:3344  #配置中心的地址
+       二、消息总选bus
+        运行期间当配置发生变动时，服务器不需要重启即可同步配置的变化
+            common_config;
+                pom.xml:
+                    spring-cloud-starter-config
+                bootstrap.yml:
+                    spring:
+                      rabbitmq:
+                        host: 192.168.233.132
+                        username: admin
+                        password: 1111
+                        virtual-host: /
+
+                    management:
+                      endpoint:
+                      endpoints:
+                        web:
+                          exposure:
+                            include: bus-refresh #springboot 默认开启了权限拦截 会导致/bus-refresh出现 405，拒绝访问
+            usian_item_service:
+                pom.xml:
+                    spring-cloud-starter-config
+            usian_item_web:
+                pom.xml:
+                    spring-cloud-starter-config
